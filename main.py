@@ -203,7 +203,7 @@ def fetch_folder_data(url: str) -> Dict[str, Any]:
 
     return {
         "group": {
-            "group": "TIF",
+            "group": "DNSBunker CTI",
             "action": {
                 "do": 0,
                 "status": 1,
