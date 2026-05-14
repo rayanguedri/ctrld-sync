@@ -45,13 +45,7 @@ PROFILE_IDS = [p.strip() for p in os.getenv("PROFILE", "").split(",") if p.strip
 
 # URLs of the JSON block-lists we want to import
 FOLDER_URLS = [
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/badware-hoster-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/native-tracker-amazon-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/native-tracker-microsoft-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/native-tracker-tiktok-aggressive-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/referral-allow-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/spam-idns-folder.json",
-    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/ultimate-known_issues-allow-folder.json",
+   "https://codeberg.org/xRuffKez/tif/raw/branch/main/domains.txt",
 ]
 
 BATCH_SIZE = 500
@@ -188,9 +182,35 @@ def get_all_existing_rules(profile_id: str) -> Set[str]:
 
 
 def fetch_folder_data(url: str) -> Dict[str, Any]:
-    """Return folder data from GitHub JSON."""
-    js = _gh_get(url)
-    return js
+    """Return Control-D-shaped folder data from a plain domains.txt list."""
+    r = _gh.get(url)
+    r.raise_for_status()
+
+    rules = []
+    seen = set()
+
+    for line in r.text.splitlines():
+        hostname = line.strip()
+
+        if not hostname or hostname.startswith("#"):
+            continue
+
+        hostname = hostname.split("#", 1)[0].strip()
+
+        if hostname and hostname not in seen:
+            seen.add(hostname)
+            rules.append({"PK": hostname})
+
+    return {
+        "group": {
+            "group": "TIF",
+            "action": {
+                "do": 0,
+                "status": 1,
+            },
+        },
+        "rules": rules,
+    }
 
 
 def delete_folder(profile_id: str, name: str, folder_id: str) -> bool:
