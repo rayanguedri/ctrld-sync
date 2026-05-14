@@ -46,6 +46,7 @@ PROFILE_IDS = [p.strip() for p in os.getenv("PROFILE", "").split(",") if p.strip
 # URLs of the JSON block-lists we want to import
 FOLDER_URLS = [
    "https://codeberg.org/xRuffKez/tif/raw/branch/main/domains.txt",
+    "https://raw.githubusercontent.com/DandelionSprout/adfilt/refs/heads/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareDomains.txt",
 ]
 
 BATCH_SIZE = 500
@@ -182,28 +183,48 @@ def get_all_existing_rules(profile_id: str) -> Set[str]:
 
 
 def fetch_folder_data(url: str) -> Dict[str, Any]:
-    """Return Control-D-shaped folder data from a plain domains.txt list."""
+    """Return Control-D-shaped folder data from a plain domain list."""
+    import re
+
     r = _gh.get(url)
     r.raise_for_status()
+
+    if "AntiMalwareDomains.txt" in url:
+        folder_name = "Dandelion Anti-Malware"
+    else:
+        folder_name = "DNSBunker CTI"
+
+    domain_re = re.compile(r"^(?:[a-z0-9_-]+\.)+[a-z0-9_-]+\.?$", re.I)
+    ip_re = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$")
 
     rules = []
     seen = set()
 
-    for line in r.text.splitlines():
-        hostname = line.strip()
+    for token in r.text.replace("\ufeff", "").split():
+        hostname = token.strip().lower()
+        hostname = hostname.strip(" \t\r\n,;()[]{}<>\"'`")
 
         if not hostname or hostname.startswith("#"):
             continue
 
-        hostname = hostname.split("#", 1)[0].strip()
+        # Ignore URLs/comments/evidence links, only keep raw domains/IPs.
+        if "/" in hostname or ":" in hostname or "•" in hostname or "|" in hostname:
+            continue
 
-        if hostname and hostname not in seen:
+        # Ignore common hosts-file sinkhole addresses if they appear.
+        if hostname in {"0.0.0.0", "127.0.0.1", "::1", "localhost"}:
+            continue
+
+        if not domain_re.match(hostname) and not ip_re.match(hostname):
+            continue
+
+        if hostname not in seen:
             seen.add(hostname)
             rules.append({"PK": hostname})
 
     return {
         "group": {
-            "group": "DNSBunker CTI",
+            "group": folder_name,
             "action": {
                 "do": 0,
                 "status": 1,
